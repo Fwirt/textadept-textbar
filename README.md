@@ -29,7 +29,7 @@ bar.goodbye = nil
 -- By default fields float in the center, but they can be aligned
 bar.hello.align = textbar.LEFT
 -- Replace the built-in statusbar by hooking into the ui metatable
-textbar.replace_statusbar()
+bar.replace_statusbar()
 ```
 
 Per Mitchell's instructions, textbars should not be initialized in init.lua becuase they require the creation of new views and buffers.
@@ -37,7 +37,7 @@ Per Mitchell's instructions, textbars should not be initialized in init.lua becu
 ## Known bugs/limitations
 - Updating the statusbar removes focus from the find/replace dialog
 - Closing the backing buffer or view breaks everything
-- No cleaup code written yet
+- No cleanup code written yet
  
 ## Todo
 - Fix bugs
