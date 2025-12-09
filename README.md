@@ -2,7 +2,7 @@
 
 **this is in early alpha and is still fragile but serves as a PoC**
 
-A Textadept module that defines a customizable, programmable user-interface widget. Basically a statusbar than can reside in any horizontally split view.
+A Textadept module that defines a customizable, programmable user-interface widget. Basically a statusbar that can reside in any horizontally split view.
 
 It requires the view.height, view.width, and events.RESIZE features from my ta feature branch which has not been merged yet.
 
@@ -35,9 +35,10 @@ bar.replace_statusbar()
 Per Mitchell's instructions, textbars should not be initialized in init.lua becuase they require the creation of new views and buffers.
 
 ## Known bugs/limitations
-- Updating the statusbar removes focus from the find/replace dialog
+- Updating a textbar after a find operation removes focus from the find/replace dialog, meaning that subsequent Enter presses don't work
 - Closing the backing buffer or view breaks everything
 - No cleanup code written yet
+- Curses needs special handling for tab stops that I haven't added yet
  
 ## Todo
 - Fix bugs
