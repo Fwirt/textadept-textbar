@@ -335,6 +335,10 @@ local function add_field(key)
 			return align
 		elseif key == "width" then
 			return width
+		elseif key == "name" then
+			return name
+		elseif key == "index" then
+			return index
 		else
 			return rawget(t, key)
 		end
@@ -389,10 +393,15 @@ local function add_field(key)
 end
 
 local function delete_field(key)
-	-- delete the reference first
-	local attrib = type(key) == "string" and "index" or "name"
-	fields[fields[key][attrib]] = nil
-	fields[key] = nil
+	local index, name
+	if type(key) == "number" then
+		index, name = key, fields[key].name
+	else
+		index, name = fields[key].index, key
+	end
+	fields[name] = nil
+	table.remove(fields, index)
+	
 	M.update()
 end
 
@@ -428,6 +437,7 @@ status_meta.__newindex = function (t, key, value)
 		add_field(key)
 	elseif fields[key] and not value then
 		delete_field(key)
+		return
 	end
 	fields[key].text = value
 end
