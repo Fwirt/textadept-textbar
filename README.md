@@ -8,6 +8,8 @@ It requires the view.height, view.width, and events.RESIZE features from my ta f
 
 Install this module by copying it into your ~/.textadept/modules/ directory or Textadept's modules/ directory.
 
+![](https://github.com/Fwirt/textadept-textbar/demo.gif)
+
 To setup a new textbar, call the following code from the Lua command entry:
 
 ```lua
