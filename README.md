@@ -37,7 +37,6 @@ bar.replace_statusbar()
 Per Mitchell's instructions, textbars should not be initialized in init.lua becuase they require the creation of new views and buffers.
 
 ## Known bugs/limitations
-- Updating a textbar after a find operation removes focus from the find/replace dialog, meaning that subsequent Enter presses don't work
 - Closing the backing buffer or view breaks everything
 - No cleanup code written yet
 - Curses needs special handling for tab stops that I haven't added yet

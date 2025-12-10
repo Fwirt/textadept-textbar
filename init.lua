@@ -25,12 +25,6 @@ local Vw -- cached view width
 local fields = {}
 local status_meta = {}
 
--- if updating a textbar would break some core function due to stealing focus,
--- then set this to true in an event handler. It will cancel the next update
--- but reset itself so subsequent calls will work. Mostly needed for
--- replace_statusbar to cooperate with the find/replace dialog.
-local event_cancel_update = false
-
 -- init the textbars table if it doesn't exist
 _G._TEXTBARS = _G._TEXTBARS or {}
 
@@ -71,55 +65,12 @@ local function indexof(t, value)
 	return nil
 end
 
--- We have to switch views to update the tab stops, but switching
--- views triggers a whole bunch of built-in events designed for
--- users switches, which we should ignore.
-local block_switch_events = nil
-local function preempt_event()
-	return block_switch_events
-end
-events.connect(events.VIEW_BEFORE_SWITCH, preempt_event, 1)
-events.connect(events.VIEW_AFTER_SWITCH, preempt_event, 1)
-
---[[ FIXME: Looks like ui.find.focus() doesn't focus the Find: field when
-called from a function instead of a keybind. Figure out why...
-
--- If the find dialog is open then when we update the view it will steal
--- focus, and subsequent enter presses will not find the next occurence,
--- so setup an event handler to return focus if the window was opened when
--- a find command was evoked.
-local find_return_focus = nil
-local function find_called()
-	if ui.find.active then find_return_focus = true end
-end
--- Unfortunately there is no way to return focus to the replace button
--- after the find dialog uses focus, so if a user is invoking a
--- replace event it's just not possible to update the statusbar without
--- breaking the enter keyboard press handler.
-local function replace_called()
-	if ui.find.active then event_cancel_update = true end
-end
-local function return_focus_to_find()
-	if find_return_focus then
-		ui.find.focus()
-		find_return_focus = nil
-	end
-end
-events.connect(events.FIND, find_called)
-events.connect(events.REPLACE, replace_called, 1)
-events.connect(events.VIEW_AFTER_SWITCH, return_focus_to_find)
-]]
-
 -- Fill the buffer with styled field text and update the tab stops.
 M.update = function ()
 	if not (B and V) then -- the view must be initialized first!
 		error("setup_view must be called first")
 		return
 	end
-	-- Switching views will hide the command entry so
-	-- we can't update textbars while the entry is open
-	if _G.ui.command_entry.active then return end
-	--if event_cancel_update then event_cancel_update = false return end
 
 	Vw = V.width
 	local left, right = M.padding, Vw - M.padding
@@ -127,22 +78,18 @@ M.update = function ()
 	local line_text = ""
 	local field_text
 
-	local view_before = _G.view
-	block_switch_events = true
-	_G.ui.goto_view(V)
-
-	B:clear_tab_stops(1)
-	B:clear_all()
+	V:clear_tab_stops(1)
+	V:clear_all()
 	-- first we have to add the tab stops before printing any text
 	for _, f in ipairs(fields) do
 		field_text = f.text
 		if #field_text > 0 then 
 			if f.align == M.LEFT then
-				B:add_tab_stop(1, left)
+				V:add_tab_stop(1, left)
 				left = left + (f.width + M.padding)
 			elseif f.align == M.RIGHT then
 				right = right - (f.width + M.padding)
-				B:add_tab_stop(1, right)
+				V:add_tab_stop(1, right)
 			else
 				table.insert(centers, f.width)
 			end
@@ -152,14 +99,11 @@ M.update = function ()
 
 	local spacing = Vw//(#centers+1)
 	for i, v in ipairs(centers) do
-		B:add_tab_stop(1, (spacing*i - v//2))
+		V:add_tab_stop(1, (spacing*i - v//2))
 	end
 	
-	B:add_text(line_text)
-	B:set_save_point()
-	
-	_G.ui.goto_view(view_before)
-	block_switch_events = nil
+	V:add_text(line_text)
+	V:set_save_point()
 end
 
 -- Since we want complete control over styling, don't let the lexer
@@ -169,12 +113,6 @@ local function preempt_lexer(end_pos, buffer)
 	if buffer == B then return true end
 end
 events.connect(events.STYLE_NEEDED, preempt_lexer, 1)
-
--- if the user tries to close the buffer then everything breaks
-local function reopen_buffer(buffer)
-	if buffer == B then setup_buffer(NAME) end
-end
-events.connect(events.BUFFER_DELETED, reopen_buffer)
 
 -- Create a view at the bottom of the window that is one line tall
 -- to hold the document and set local pointer variables
@@ -193,24 +131,28 @@ local function setup_buffer(name)
 	V:goto_buffer(B)
 	B._type = NAME
 	status_meta.__name = NAME
-	B.undo_collection = false
-	B.scroll_width_tracking = false
-	B.scroll_width = 1
-	B.margins = 0
-	B.margin_left = 0
-	B.margin_right = 0
-	B.h_scroll_bar = false
-	B.v_scroll_bar = false
-	B.caret_line_visible = false
-	B.tab_width = 1
-	B.minimum_tab_width = 1
-	B.indentation_guides = B.IV_NONE
+	V.undo_collection = false
+	V.scroll_width_tracking = false
+	V.scroll_width = 1
+	V.margins = 0
+	V.margin_left = 0
+	V.margin_right = 0
+	V.h_scroll_bar = false
+	V.v_scroll_bar = false
+	V.caret_line_visible = false
+	V.tab_width = 1
+	V.minimum_tab_width = 1
+	V.indentation_guides = V.IV_NONE
 	B:clear_all()
 	B:set_save_point()
+	
+	-- TODO: replace the view.goto_buffer, buffer.close, buffer.delete
+	-- methods with empty functions to prevent them from breaking this
+	-- module
 end
 
 local function maintain_size(resized)
-	if resized == V and not _G.ui.command_entry.active then
+	if resized == V then
 		Vw = V.width
 		M.update()
 		V.height = V:text_height(1)
@@ -277,7 +219,7 @@ end
 -- this function will fix up the alignments of the fields to prevent
 -- undesired behavior.
 local function fix_alignment()
-	local sets = {M.LEFT, "", M.CENTER, M.RIGHT}
+	local sets = {M.LEFT, M.CENTER, M.RIGHT}
 	current_set = 1
 	for i, v in ipairs(fields) do
 		if indexof(sets, v.align) > current_set then
@@ -407,11 +349,8 @@ end
 
 -- Remove all event handlers and tie up any loose ends.
 local function cleanup()
-	events.connect(events.VIEW_BEFORE_SWITCH, preempt_event)
-	events.connect(events.VIEW_AFTER_SWITCH, preempt_event)
-	events.connect(events.STYLE_NEEDED, preempt_lexer)
-	events.connect(events.BUFFER_DELETED, prevent_close)
-	events.connect(events.RESIZE, maintain_size)
+	events.disconnect(events.STYLE_NEEDED, preempt_lexer)
+	events.disconnect(events.RESIZE, maintain_size)
 end
 
 status_meta.__index = function (t, key)
